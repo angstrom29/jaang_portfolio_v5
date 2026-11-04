@@ -1,0 +1,43 @@
+# John Andrew Ang - AI Automation Developer & Consultant
+
+> High-performance AI automation workflows, custom AI agents, and lean funnel architectures. Transforming operational chaos into clean, robust systems.
+
+## Professional Summary
+- **Name**: John Andrew Ang
+- **Role**: AI Automation Developer & Consultant | Systems Architect
+- **Location**: Metro Manila, Philippines (Serving clients globally including Australia, United States, UK, and Southeast Asia)
+- **Email**: proxoft.solutions@gmail.com
+- **WhatsApp**: +639979882369
+- **Booking Calendar**: https://cal.com/automatewithjohn/30min
+- **Website**: https://automatewithjohn.com
+
+## Core Expertise & Tech Stack
+- **Workflow Automation & Orchestration**: Make.com, n8n, Zapier
+- **CRM & Marketing Funnels**: GoHighLevel (GHL), Elementor, WordPress, ClickUp, monday.com
+- **AI & LLM Integration**: OpenAI API (GPT-4o), Claude API, Custom AI Agents, Conversational Guardrails
+- **Financial & Operations Systems**: Zoho Books, Xero, Stripe, Lightspeed POS, Google Sheets, Slack, Gmail
+- **Messaging & Chatbots**: WhatsApp Flows, Web Chat Widgets, Custom AI Receptionists
+
+## Primary Services
+1. **MVP Funnel Architecture & Lean Lead Systems**: Error-proof lead capture, multi-channel routing, automated follow-ups, and GoHighLevel CRM integration.
+2. **Internal Operations & Core Workflow Design**: Automated order processing, invoice generation, inventory sync, and multi-app data synchronization.
+3. **Practical AI Agents & Receptionists**: 24/7 lead capture chatbots with strict prompt guardrails (no hallucinating pricing, no pretending to be human, no overpromising) linked directly to CRMs (monday.com, ClickUp, Zoho).
+
+## Verified Case Studies & Proven Results
+- **AI Receptionist for Melbourne AV Company**: Custom Elementor chat widget connected to Make.com + OpenAI API + monday.com. Provides 24/7 technical FAQ answering, qualifies inquiries, and automatically maps structured lead cards to monday.com with Gmail escalation for complex requests.
+- **Order-to-Invoice Automation in Under a Second**: Instant Make.com integration translating Google Sheets orders into fully itemized Zoho Books invoices with dynamic item validation and customer deduplication upsert.
+- **Automated WordPress Content Pipeline**: Integrated Make.com and monday.com to automatically generate, format, SEO-optimize (meta descriptions, focus keywords, internal linking), and publish Gutenberg posts, saving 20+ hours/week ($4,080/month savings).
+- **Mobile AI Operations Assistant on WhatsApp**: WhatsApp Flows + Make.com + OpenAI assistant handling mobile event summarization, scheduling, and task management, saving 30 hours/week.
+- **Lightspeed POS to ClickUp and Xero Sync**: Multi-app webhook pipeline eliminating manual double-entry across POS, operations, and accounting, saving 40 hours/week ($2,720/month savings).
+
+## Verified Profiles & Social Proof
+- **LinkedIn**: https://www.linkedin.com/in/engrdrew/
+- **GitHub**: https://github.com/angstrom29
+- **Upwork**: https://www.upwork.com/freelancers/johnandrewa
+- **OnlineJobs.ph**: https://www.onlinejobs.ph/jobseekers/info/3015258
+- **Credly Verified Expert**: https://www.credly.com/users/automatewithjohn
+
+## Engagement Options
+- **Starter Build**: Single-scenario automations delivered in 48-72 hours.
+- **Growth Ecosystem**: Full-funnel architectures and complex operational integrations delivered in 2-4 weeks.
+- **Consulting & Retainers**: Dedicated post-launch monitoring, error alerting, and ongoing scenario expansion.
