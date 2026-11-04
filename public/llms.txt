@@ -9,7 +9,7 @@
 - **Email**: proxoft.solutions@gmail.com
 - **WhatsApp**: +639979882369
 - **Booking Calendar**: https://cal.com/automatewithjohn/30min
-- **Website**: https://automatewithjohn.com
+- **GitHub**: https://github.com/angstrom29
 
 ## Core Expertise & Tech Stack
 - **Workflow Automation & Orchestration**: Make.com, n8n, Zapier

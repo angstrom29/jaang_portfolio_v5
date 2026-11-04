@@ -10,6 +10,9 @@ import { ContactProvider, useContact } from './context/ContactContext';
 import { Loader2 } from 'lucide-react';
 import ChatWidget from './components/ChatWidget';
 
+// Feature flag: set to true to re-enable the Gemini AI Chatbot
+const ENABLE_CHATBOT = false;
+
 // Lazy load below-the-fold components
 const Services = lazy(() => import('./components/Services'));
 const Process = lazy(() => import('./components/Process'));
@@ -129,7 +132,8 @@ const App: React.FC = () => {
             <Suspense fallback={null}>
                <GlobalModals />
             </Suspense>
-            {/* <ChatWidget /> */}
+            {/* Chatbot temporarily disabled */}
+            {ENABLE_CHATBOT && <ChatWidget />}
           </div>
         </BookingProvider>
       </ContactProvider>

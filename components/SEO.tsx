@@ -18,7 +18,8 @@ const SEO: React.FC<SEOProps> = ({
   ogType = 'website',
 }) => {
   // Dynamically resolve canonical URL if not explicitly provided
-  const resolvedCanonical = canonicalUrl || (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : 'https://automatewithjohn.com');
+  const resolvedCanonical = canonicalUrl || (typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}${window.location.pathname}` : '');
+  const baseId = resolvedCanonical || '';
 
   const sameAsLinks = [
     ...SOCIAL_LINKS.map(link => link.url),
@@ -32,13 +33,13 @@ const SEO: React.FC<SEOProps> = ({
       // 1. Person Entity (Identifiable Expert)
       {
         '@type': 'Person',
-        '@id': `${resolvedCanonical}#person`,
+        '@id': baseId ? `${baseId}#person` : '#person',
         'name': 'John Andrew Ang',
         'alternateName': ['AutomateWithJohn', 'EngrDrew', 'John Andrew A.'],
         'jobTitle': 'AI Automation Developer & Consultant',
         'description': 'Senior AI Automation Developer and Systems Architect specializing in Make.com, n8n, Zapier, GoHighLevel, and AI Agents.',
         'image': 'https://i.imgur.com/rQe36LP.png',
-        'url': resolvedCanonical,
+        ...(resolvedCanonical ? { 'url': resolvedCanonical } : {}),
         'email': CONTACT_EMAIL,
         'telephone': CONTACT_WHATSAPP,
         'sameAs': sameAsLinks,
@@ -67,15 +68,15 @@ const SEO: React.FC<SEOProps> = ({
       // 2. Professional Service / Business Entity
       {
         '@type': 'ProfessionalService',
-        '@id': `${resolvedCanonical}#service`,
+        '@id': baseId ? `${baseId}#service` : '#service',
         'name': 'John Andrew Ang - AI Automation & Systems Architecture',
-        'url': resolvedCanonical,
+        ...(resolvedCanonical ? { 'url': resolvedCanonical } : {}),
         'image': ogImage,
         'email': CONTACT_EMAIL,
         'telephone': CONTACT_WHATSAPP,
         'priceRange': '$$',
         'provider': {
-          '@id': `${resolvedCanonical}#person`
+          '@id': baseId ? `${baseId}#person` : '#person'
         },
         'areaServed': [
           { '@type': 'Country', 'name': 'Global' },
@@ -118,7 +119,7 @@ const SEO: React.FC<SEOProps> = ({
       // 3. FAQPage Schema for Direct Answer Synthesis in AI Search (ChatGPT, Gemini, Perplexity)
       {
         '@type': 'FAQPage',
-        '@id': `${resolvedCanonical}#faq`,
+        '@id': baseId ? `${baseId}#faq` : '#faq',
         'mainEntity': [
           {
             '@type': 'Question',
@@ -165,7 +166,7 @@ const SEO: React.FC<SEOProps> = ({
       // 4. ItemList of Verified Case Studies (Proof of Work)
       {
         '@type': 'ItemList',
-        '@id': `${resolvedCanonical}#casestudies`,
+        '@id': baseId ? `${baseId}#casestudies` : '#casestudies',
         'name': 'Verified AI Automation Case Studies & Results',
         'itemListElement': [
           {
@@ -173,28 +174,28 @@ const SEO: React.FC<SEOProps> = ({
             'position': 1,
             'name': 'AI Receptionist for 24/7 Lead Capture & Support (Melbourne AV Company)',
             'description': 'Elementor chat widget with Make.com and OpenAI API qualification, automatically saving structured lead cards to monday.com with Gmail team alerts.',
-            'creator': { '@id': `${resolvedCanonical}#person` }
+            'creator': { '@id': baseId ? `${baseId}#person` : '#person' }
           },
           {
             '@type': 'CreativeWork',
             'position': 2,
             'name': 'Order-to-Invoice Automation in Under a Second',
             'description': 'Make.com scenario turning Google Sheets orders into detailed Zoho Books invoices with dynamic item validation and customer deduplication in under 1 second.',
-            'creator': { '@id': `${resolvedCanonical}#person` }
+            'creator': { '@id': baseId ? `${baseId}#person` : '#person' }
           },
           {
             '@type': 'CreativeWork',
             'position': 3,
             'name': 'Automated WordPress Blog Post Publisher',
             'description': 'Make.com and monday.com content pipeline with AI SEO meta descriptions, focus keywords, and automated Gutenberg internal linking, saving 20+ hours/week.',
-            'creator': { '@id': `${resolvedCanonical}#person` }
+            'creator': { '@id': baseId ? `${baseId}#person` : '#person' }
           },
           {
             '@type': 'CreativeWork',
             'position': 4,
             'name': 'Order and Accounting Automation System (Lightspeed POS to ClickUp and Xero)',
             'description': 'Automated webhook pipeline connecting Lightspeed POS to ClickUp and Xero accounting, eliminating 40 hours/week of manual data entry.',
-            'creator': { '@id': `${resolvedCanonical}#person` }
+            'creator': { '@id': baseId ? `${baseId}#person` : '#person' }
           }
         ]
       }
@@ -222,11 +223,11 @@ const SEO: React.FC<SEOProps> = ({
       <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 
       {/* Canonical URL */}
-      <link rel="canonical" href={resolvedCanonical} />
+      {resolvedCanonical && <link rel="canonical" href={resolvedCanonical} />}
 
       {/* OpenGraph / Facebook / LinkedIn */}
       <meta property="og:type" content={ogType} />
-      <meta property="og:url" content={resolvedCanonical} />
+      {resolvedCanonical && <meta property="og:url" content={resolvedCanonical} />}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
@@ -236,7 +237,7 @@ const SEO: React.FC<SEOProps> = ({
 
       {/* Twitter Cards */}
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:url" content={resolvedCanonical} />
+      {resolvedCanonical && <meta name="twitter:url" content={resolvedCanonical} />}
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />

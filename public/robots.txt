@@ -44,4 +44,4 @@ User-agent: cohere-ai
 Allow: /
 
 # Sitemaps & LLM Context Files
-Sitemap: https://automatewithjohn.com/sitemap.xml
+Sitemap: /sitemap.xml

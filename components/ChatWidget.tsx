@@ -1,366 +1,533 @@
-
 import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Bot, 
+  Send, 
+  X, 
+  Sparkles, 
+  Calendar, 
+  MessageCircle, 
+  RotateCcw, 
+  Copy, 
+  Check, 
+  ChevronDown,
+  Zap,
+  Brain,
+  MessageSquare
+} from 'lucide-react';
+import { BOOKING_URL, CONTACT_WHATSAPP } from '../constants';
+import { useBooking } from '../context/BookingContext';
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  model?: string;
+  timestamp: string;
+}
+
+const AVAILABLE_MODELS = [
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'General / Recommended',
+    description: 'Fast, smart, and balanced for general inquiries and lead qualification',
+    icon: Zap,
+    color: 'text-amber-500'
+  },
+  {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
+    tag: 'Ultra-Fast',
+    description: 'Optimized for high-speed Q&A and instant responses',
+    icon: Sparkles,
+    color: 'text-orange-500'
+  },
+  {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    tag: 'Complex Architecture',
+    description: 'Deep reasoning for complex multi-app architecture & system strategy',
+    icon: Brain,
+    color: 'text-purple-500'
+  }
+];
+
+const INITIAL_WELCOME: ChatMessage = {
+  id: 'welcome',
+  sender: 'bot',
+  text: "Hi there! 👋 I'm John Andrew Ang's **Gemini AI Assistant**.\n\nI can answer questions about John's **AI automations** (Make.com, n8n, Zapier), **sales funnels** (GoHighLevel), **case studies**, and help you book a discovery call. How can I help you today?",
+  model: 'gemini-3.8-flash',
+  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+};
+
+const STARTER_PROMPTS = [
+  "What automation services do you build?",
+  "Tell me about the Zoho Books under 1-second automation",
+  "Can you build a custom AI receptionist for my site?",
+  "How fast can an automation project launch?"
+];
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      type: 'bot',
-      text: "Hi there, I'm John's AI Assistant. How can I help you?"
-    }
-  ]);
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_WELCOME]);
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showStarterPrompts, setShowStarterPrompts] = useState(true);
-  
+  const [isLoading, setIsLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const { openBooking } = useBooking();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const CONFIG = {
-    webhookUrl: 'https://n8nproxoftrepo.site/webhook/ffcf29b6-19e9-40fd-81a6-132910560043/chat',
-    maxChars: 5000,
-    botAvatarSrc: 'https://i.imgur.com/rQe36LP.png',
-    userAvatarSrc: 'https://www.svgrepo.com/show/532363/user-alt-1.svg',
-    headerAvatarSrc: 'https://i.imgur.com/zCrUjG4.png',
-    buttonIconSrc: 'https://i.imgur.com/zCrUjG4.png'
-  };
-
+  // Show friendly tooltip on initial load
   useEffect(() => {
-    // Show tooltip logic after delay
     const timer = setTimeout(() => {
       setShowTooltip(true);
-      const hideTimer = setTimeout(() => setShowTooltip(false), 5000);
+      const hideTimer = setTimeout(() => setShowTooltip(false), 6000);
       return () => clearTimeout(hideTimer);
-    }, 2000);
+    }, 2500);
     return () => clearTimeout(timer);
   }, []);
 
+  // Auto-scroll when messages or typing state changes
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isOpen, messages, isLoading]);
+
+  // Focus input on open
   useEffect(() => {
     if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
-    // Scroll to bottom
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [isOpen, messages, isTyping]);
+  }, [isOpen]);
 
-  const getSessionId = () => {
-      let sessionId = localStorage.getItem('chat_session_id');
-      if (!sessionId) {
-          sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-          localStorage.setItem('chat_session_id', sessionId);
-      }
-      return sessionId;
-  };
+  const handleSendMessage = async (textToSend?: string) => {
+    const messageContent = (textToSend || inputValue).trim();
+    if (!messageContent || isLoading) return;
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim()) return;
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      sender: 'user',
+      text: messageContent,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
 
-    setShowStarterPrompts(false);
-    
-    // Add user message
-    const userMsg = { id: Date.now().toString(), type: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMessage]);
     setInputValue('');
-    setIsTyping(true);
+    setIsLoading(true);
 
     try {
-      const response = await fetch(CONFIG.webhookUrl, {
+      // Build conversation history for multi-turn Gemini context
+      const historyPayload = messages
+        .filter(m => m.id !== 'welcome')
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          parts: [{ text: m.text }]
+        }));
+
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'sendMessage',
-          chatInput: text,
-          sessionId: getSessionId()
+          message: messageContent,
+          history: historyPayload,
+          model: selectedModel
         })
       });
 
-      const data = await response.json();
-      setIsTyping(false);
+      if (!res.ok) {
+        throw new Error(`Server responded with ${res.status}`);
+      }
 
-      const botText = data.output || data.response || 'Error, please reload the page.';
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), type: 'bot', text: botText }]);
+      const data = await res.json();
+      const botResponseText = data.text || "I've processed your request. Feel free to ask more details or book a call!";
 
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setIsTyping(false);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), type: 'bot', text: 'Error, please reload the page.' }]);
+      const botMessage: ChatMessage = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: botResponseText,
+        model: data.model || selectedModel,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      const fallbackMessage: ChatMessage = {
+        id: `bot-err-${Date.now()}`,
+        sender: 'bot',
+        text: "I'm having a brief issue reaching the Gemini model right now. You can also connect with John directly:\n\n• **Book a Call:** [Cal.com 30-Min Discovery](" + BOOKING_URL + ")\n• **WhatsApp:** [Message John on WhatsApp](https://wa.me/" + CONTACT_WHATSAPP + ")",
+        model: selectedModel,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, fallbackMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(inputValue);
+      handleSendMessage();
     }
   };
 
-  const copyToClipboard = (text: string) => {
+  const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
+
+  const handleResetChat = () => {
+    setMessages([
+      {
+        ...INITIAL_WELCOME,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  };
+
+  // Basic formatting helper for bold, bullet points, and links
+  const renderFormattedText = (rawText: string) => {
+    return rawText.split('\n').map((line, idx) => {
+      // Process simple markdown links [Label](URL)
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const parts = [];
+      let lastIndex = 0;
+      let match;
+
+      while ((match = linkRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(line.substring(lastIndex, match.index));
+        }
+        parts.push(
+          <a
+            key={`${idx}-${match.index}`}
+            href={match[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-600 dark:text-orange-400 font-semibold underline hover:text-orange-700"
+          >
+            {match[1]}
+          </a>
+        );
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < line.length) {
+        parts.push(line.substring(lastIndex));
+      }
+
+      // Simple bold formatting
+      const renderedLine = parts.map((part, pIdx) => {
+        if (typeof part !== 'string') return part;
+        const boldRegex = /\*\*([^*]+)\*\*/g;
+        const subParts = [];
+        let bLast = 0;
+        let bMatch;
+        while ((bMatch = boldRegex.exec(part)) !== null) {
+          if (bMatch.index > bLast) {
+            subParts.push(part.substring(bLast, bMatch.index));
+          }
+          subParts.push(<strong key={`${pIdx}-${bMatch.index}`} className="font-semibold text-slate-900 dark:text-white">{bMatch[1]}</strong>);
+          bLast = bMatch.index + bMatch[0].length;
+        }
+        if (bLast < part.length) {
+          subParts.push(part.substring(bLast));
+        }
+        return subParts;
+      });
+
+      return (
+        <span key={idx} className="block min-h-[1.25rem]">
+          {renderedLine}
+        </span>
+      );
+    });
+  };
+
+  const currentModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0];
 
   return (
     <>
-      <style>{`
-        .chat-widget-button {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 60px;
-            height: 60px;
-            background-color: #f87217;
-            border-radius: 15px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(248, 114, 23, 0.4);
-            z-index: 9998;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .chat-widget-button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 6px 16px rgba(248, 114, 23, 0.5);
-        }
-        .chat-widget-button img {
-            width: 60px;
-            height: 60px;
-            border-radius: 15px;
-        }
-        .chat-tooltip {
-            position: fixed;
-            bottom: 90px;
-            right: 20px;
-            background-color: #fff9f6;
-            color: #1c1c1c;
-            padding: 12px 18px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            z-index: 9997;
-            white-space: nowrap;
-            opacity: 0;
-            animation: tooltipFadeIn 0.3s ease forwards;
-        }
-        @keyframes tooltipFadeIn { to { opacity: 1; } }
-        .chat-tooltip::after {
-            content: '';
-            position: absolute;
-            bottom: -6px;
-            right: 25px;
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 6px solid #fff9f6;
-        }
-        .chat-window {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 400px;
-            height: 600px;
-            background-color: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            transform-origin: bottom right;
-        }
-        .chat-window.closed {
-            opacity: 0;
-            transform: scale(0.9) translateY(20px);
-            pointer-events: none;
-        }
-        .chat-window.open {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-            pointer-events: all;
-        }
-        .chat-header {
-            background-color: #f87217;
-            color: #fafafa;
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .chat-header-content { display: flex; align-items: center; gap: 12px; }
-        .chat-header-avatar { width: 40px; height: 40px; border-radius: 25px; object-fit: cover; }
-        .chat-header-title { font-size: 18px; font-weight: 600; }
-        .chat-close-btn {
-            background: none; border: none; color: #fafafa; font-size: 24px; cursor: pointer;
-            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-            border-radius: 4px; transition: background 0.2s;
-        }
-        .chat-close-btn:hover { background: rgba(255, 255, 255, 0.1); }
-        .chat-messages {
-            flex: 1; overflow-y: auto; padding: 20px; background-color: #ffffff;
-        }
-        .chat-messages::-webkit-scrollbar { width: 6px; }
-        .chat-messages::-webkit-scrollbar-thumb { background-color: #d0d0d0; border-radius: 3px; }
-        .welcome-message {
-            background-color: #f87217; color: #fafafa; padding: 12px 16px;
-            border-radius: 6px; margin-bottom: 16px; display: flex; gap: 10px; align-items: flex-start;
-        }
-        .welcome-message .avatar { width: 32px; height: 32px; border-radius: 25px; flex-shrink: 0; }
-        .starter-prompts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-        .starter-prompt {
-            background-color: #f5f5f5; border: 1px solid #e0e0e0; color: #1e1e1f;
-            padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 15px;
-            text-align: center; transition: all 0.2s ease;
-        }
-        .starter-prompt:hover { background-color: #fff6f3; border-color: #f87217; transform: translateY(-1px); }
-        .message { display: flex; gap: 10px; margin-bottom: 16px; align-items: flex-start; }
-        .message.bot .avatar { width: 32px; height: 32px; border-radius: 25px; flex-shrink: 0; }
-        .message.user { flex-direction: row-reverse; }
-        .message.user .avatar { width: 32px; height: 32px; border-radius: 25px; flex-shrink: 0; }
-        .message-content {
-            max-width: 70%; padding: 12px 16px; border-radius: 6px; font-size: 16px; line-height: 1.5; position: relative;
-        }
-        .message.bot .message-content { background-color: #f87217; color: #fafafa; }
-        .message.user .message-content { background-color: #fff6f3; color: #050505; }
-        .copy-icon {
-            position: absolute; top: 8px; right: 8px; cursor: pointer; opacity: 0; transition: opacity 0.2s;
-            width: 16px; height: 16px; font-size: 12px; display: flex; align-items: center; justify-content: center;
-        }
-        .message:hover .copy-icon { opacity: 0.7; }
-        .copy-icon:hover { opacity: 1 !important; }
-        .chat-input-container { padding: 16px 20px; background-color: #ffffff; border-top: 1px solid #e5e5e5; }
-        .chat-input-wrapper {
-            display: flex; align-items: center; gap: 10px; background-color: #ffffff;
-            border: 1px solid #d0d0d0; border-radius: 6px; padding: 8px 12px; transition: border-color 0.2s;
-        }
-        .chat-input-wrapper:focus-within { border-color: #f87217; }
-        .chat-input { flex: 1; border: none; outline: none; font-size: 16px; color: #1e1e1f; font-family: inherit; background: transparent; }
-        .chat-input::placeholder { color: #999; }
-        .send-button {
-            background-color: #f87217; border: none; width: 36px; height: 36px; border-radius: 50px;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.2s ease; flex-shrink: 0;
-        }
-        .send-button:hover { background-color: #e66610; transform: scale(1.05); }
-        .send-button:disabled { background-color: #d0d0d0; cursor: not-allowed; transform: none; }
-        .send-button svg { width: 18px; height: 18px; fill: #fafafa; }
-        .char-counter { font-size: 12px; color: #999; margin-top: 6px; }
-        .char-counter.warning { color: #e74c3c; }
-        .typing-indicator { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
-        .typing-indicator .avatar { width: 32px; height: 32px; border-radius: 25px; flex-shrink: 0; }
-        .typing-dots {
-            background-color: #f87217; padding: 12px 16px; border-radius: 6px; display: flex; gap: 4px;
-        }
-        .typing-dot {
-            width: 8px; height: 8px; background-color: #fafafa; border-radius: 50%;
-            animation: typing 1.4s infinite;
-        }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @media (max-width: 768px) {
-            .chat-window {
-                width: calc(100vw - 40px); height: calc(100vh - 40px); bottom: 20px; right: 20px;
-            }
-        }
-      `}</style>
-
-      {/* Button */}
-      <div className="chat-widget-button" onClick={() => setIsOpen(true)}>
-          <img src={CONFIG.buttonIconSrc} alt="Chat" />
-      </div>
-
-      {/* Tooltip */}
+      {/* Tooltip hint above chat button */}
       {showTooltip && !isOpen && (
-         <div className="chat-tooltip">Hello 👋</div>
+        <div 
+          onClick={() => { setIsOpen(true); setShowTooltip(false); }}
+          className="fixed bottom-24 right-6 z-50 bg-slate-900 text-white text-xs md:text-sm font-medium px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 cursor-pointer border border-slate-700 hover:scale-105 transition-all animate-bounce"
+        >
+          <Sparkles className="w-4 h-4 text-orange-400" />
+          <span>Ask John's Gemini AI</span>
+          <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-900 rotate-45 border-r border-b border-slate-700"></div>
+        </div>
       )}
 
-      {/* Window */}
-      <div className={`chat-window ${isOpen ? 'open' : 'closed'}`}>
-         {/* Header */}
-         <div className="chat-header">
-             <div className="chat-header-content">
-                 <img src={CONFIG.headerAvatarSrc} alt="Avatar" className="chat-header-avatar" />
-                 <div className="chat-header-title">JohnAI.tech</div>
-             </div>
-             <button className="chat-close-btn" onClick={() => setIsOpen(false)}>×</button>
-         </div>
+      {/* Floating Launcher Button */}
+      <button
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setShowTooltip(false);
+        }}
+        aria-label="Open AI Chatbot"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center group"
+      >
+        {isOpen ? (
+          <X className="w-6 h-6 transition-transform group-hover:rotate-90 duration-200" />
+        ) : (
+          <div className="relative flex items-center justify-center">
+            <Bot className="w-7 h-7" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white ring-1 ring-green-500 animate-pulse"></span>
+          </div>
+        )}
+      </button>
 
-         {/* Messages */}
-         <div className="chat-messages">
-             {messages.map((msg, index) => (
-                 <div key={index} className={`message ${msg.type}`}>
-                     <img 
-                       src={msg.type === 'bot' ? CONFIG.botAvatarSrc : CONFIG.userAvatarSrc} 
-                       alt={msg.type} 
-                       className="avatar" 
-                     />
-                     <div className="message-content">
-                         <div dangerouslySetInnerHTML={{ __html: msg.text }} />
-                         {msg.type === 'bot' && (
-                             <span 
-                               className="copy-icon" 
-                               title="Copy to clipboard"
-                               onClick={() => copyToClipboard(msg.text)}
-                             >
-                               📋
-                             </span>
-                         )}
-                     </div>
-                 </div>
-             ))}
+      {/* Chat Window Modal / Panel */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[92vw] sm:w-[420px] max-h-[85vh] h-[640px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-orange-500 to-amber-600 text-white px-4 py-3.5 flex items-center justify-between shrink-0 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-white/20 backdrop-blur-sm p-0.5 border border-white/30 flex items-center justify-center">
+                <img 
+                  src="https://i.imgur.com/zCrUjG4.png" 
+                  alt="John Andrew Ang AI" 
+                  className="w-full h-full object-cover rounded-lg"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border border-white"></span>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-sm tracking-tight">Automate With John AI</h3>
+                  <span className="bg-white/20 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded text-white/90">
+                    Gemini
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/80 flex items-center gap-1">
+                  <span>Online</span> • <span>Ask me anything</span>
+                </p>
+              </div>
+            </div>
 
-             {isTyping && (
-                 <div className="typing-indicator">
-                     <img src={CONFIG.botAvatarSrc} alt="Bot" className="avatar" />
-                     <div className="typing-dots">
-                         <div className="typing-dot"></div>
-                         <div className="typing-dot"></div>
-                         <div className="typing-dot"></div>
-                     </div>
-                 </div>
-             )}
-             
-             {showStarterPrompts && (
-                 <div className="starter-prompts">
-                     <div className="starter-prompt" onClick={() => sendMessage("Book an Appointment")}>Book an Appointment</div>
-                     <div className="starter-prompt" onClick={() => sendMessage("What do you do?")}>What do you do?</div>
-                 </div>
-             )}
-             <div ref={messagesEndRef} />
-         </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleResetChat}
+                title="Restart Conversation"
+                className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                title="Close Chat"
+                className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
 
-         {/* Input */}
-         <div className="chat-input-container">
-             <div className="chat-input-wrapper">
-                 <input 
-                    ref={inputRef}
-                    type="text" 
-                    className="chat-input" 
-                    placeholder="Type your query"
-                    maxLength={CONFIG.maxChars}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                 />
-                 <button 
-                   className="send-button" 
-                   disabled={!inputValue.trim()}
-                   onClick={() => sendMessage(inputValue)}
-                 >
-                     <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                 </button>
-             </div>
-             {inputValue.length > 0 && (
-                 <div className={`char-counter ${inputValue.length > CONFIG.maxChars * 0.9 ? 'warning' : ''}`}>
-                     {inputValue.length} / {CONFIG.maxChars}
-                 </div>
-             )}
-         </div>
-      </div>
+          {/* Model Selector Bar */}
+          <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-xs flex items-center justify-between relative z-20">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium">
+              <span>Model:</span>
+              <button
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold hover:border-orange-500 transition-colors shadow-2xs"
+              >
+                <currentModelInfo.icon className={`w-3.5 h-3.5 ${currentModelInfo.color}`} />
+                <span>{currentModelInfo.name}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
+              </button>
+            </div>
+
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+              Multi-turn active
+            </span>
+
+            {/* Model Dropdown Menu */}
+            {isModelDropdownOpen && (
+              <div className="absolute top-11 left-3 right-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 z-30 flex flex-col gap-1 animate-in fade-in duration-150">
+                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 px-2 py-1 tracking-wider">
+                  Select Gemini Model
+                </p>
+                {AVAILABLE_MODELS.map(model => (
+                  <button
+                    key={model.id}
+                    onClick={() => {
+                      setSelectedModel(model.id);
+                      setIsModelDropdownOpen(false);
+                    }}
+                    className={`flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors ${
+                      selectedModel === model.id 
+                        ? 'bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800' 
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <model.icon className={`w-4 h-4 mt-0.5 shrink-0 ${model.color}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-100">{model.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                          {model.tag}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                        {model.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Messages Scroll Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/50">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {msg.sender === 'bot' && (
+                  <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                )}
+
+                <div className={`relative group max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-2xs leading-relaxed ${
+                  msg.sender === 'user'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-br-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 rounded-bl-xs'
+                }`}>
+                  <div className="text-[13.5px]">
+                    {renderFormattedText(msg.text)}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-black/5 dark:border-white/5 text-[10px] text-slate-400 dark:text-slate-400">
+                    <span className="flex items-center gap-1 font-mono">
+                      {msg.model && <span className="opacity-80">{msg.model.replace('gemini-', '')}</span>}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span>{msg.timestamp}</span>
+                      {msg.sender === 'bot' && (
+                        <button
+                          onClick={() => handleCopy(msg.id, msg.text)}
+                          title="Copy response"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-opacity ml-1"
+                        >
+                          {copiedId === msg.id ? (
+                            <Check className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-slate-400 hover:text-slate-600" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Typing / Loading indicator */}
+            {isLoading && (
+              <div className="flex gap-2.5 justify-start items-center">
+                <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 animate-pulse" />
+                </div>
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-2xs rounded-bl-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Gemini is thinking</span>
+                    <span className="flex gap-1 items-center ml-1">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce"></span>
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Action Suggestion Prompts */}
+            {messages.length === 1 && (
+              <div className="pt-2">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                  Suggested Prompts
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {STARTER_PROMPTS.map((prompt, pIdx) => (
+                    <button
+                      key={pIdx}
+                      onClick={() => handleSendMessage(prompt)}
+                      className="text-left text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-orange-500 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 px-3 py-2 rounded-xl transition-all shadow-2xs hover:shadow-xs active:scale-[0.99]"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Direct CTA Quick Actions */}
+          <div className="px-3 py-2 bg-slate-100 dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                openBooking();
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 rounded-lg font-semibold transition-colors border border-orange-500/20"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Book Call</span>
+            </button>
+            <a
+              href={`https://wa.me/${CONTACT_WHATSAPP}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 rounded-lg font-semibold transition-colors border border-green-500/20"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </a>
+          </div>
+
+          {/* Input Footer */}
+          <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 focus-within:border-orange-500 focus-within:ring-1 focus-within:ring-orange-500/30 transition-all">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about automations, Make, n8n..."
+                disabled={isLoading}
+                maxLength={1000}
+                className="flex-1 bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none"
+              />
+              <button
+                onClick={() => handleSendMessage()}
+                disabled={!inputValue.trim() || isLoading}
+                className="w-8 h-8 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:hover:bg-orange-500 text-white flex items-center justify-center transition-all shrink-0 active:scale-95 shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 px-1">
+              <span>Powered by Gemini API</span>
+              <span>{inputValue.length}/1000</span>
+            </div>
+          </div>
+
+        </div>
+      )}
     </>
   );
 };
